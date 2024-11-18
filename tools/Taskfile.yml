@@ -1,0 +1,91 @@
+version: "3"
+
+tasks:
+  install-all-dev-dependencies:
+    desc: Ensures all necessary tools are properly installed for the project.
+    deps: [ensure-go-installed]
+    cmds:
+      - |
+        go mod tidy
+      - task: install-migrate
+      - task: install-golangci-lint
+      - task: install-templ
+      - task: install-sqlc
+      - task: ensure-prettier-installed
+      - echo "All tools installed successfully"
+    silent: true
+
+  ensure-go-installed:
+    cmds:
+      - |
+        if ! command -v go &> /dev/null; then
+          echo "go not found. Please install go and run this task again.";
+          exit 1
+        fi
+    internal: true
+    silent: true
+
+  ensure-npm-installed:
+    cmds:
+      - |
+        if ! command -v npm &> /dev/null; then
+          echo "npm not found. Please install npm and run this task again.";
+          exit 1
+        fi
+    internal: true
+    silent: true
+
+  install-migrate:
+    deps: [ensure-go-installed]
+    cmd: go get -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate
+    internal: true
+    silent: true
+
+  install-golangci-lint:
+    deps: [ensure-go-installed]
+    cmd: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    internal: true
+    silent: true
+
+  install-templ:
+    deps: [ensure-go-installed]
+    cmd: go install github.com/a-h/templ/cmd/templ@latest
+    internal: true
+    silent: true
+
+  install-sqlc:
+    deps: [ensure-go-installed]
+    cmd: go get github.com/sqlc-dev/sqlc/cmd/sqlc
+    internal: true
+    silent: true
+
+  ensure-prettier-installed:
+    summary: |
+      Checks if the 'prettier' tool is already installed on the system.
+      If 'prettier' is not found, the task will attempt to install it using npm.
+    deps: [ensure-npm-installed]
+    cmds:
+      - |
+        if ! command -v prettier &> /dev/null; then
+          sudo npm install -g prettier
+        fi
+    internal: true
+    silent: true
+
+  ensure-docker-running:
+    summary: "Verifies that Docker service is currently running on the host system."
+    cmds:
+      - docker info > /dev/null 2>&1 || { echo "Docker daemon must be running." && exit 1; }
+    silent: true
+    internal: true
+
+  ensure-migrate-installed:
+    summary: Checks if the 'migrate' tool, which is essential for database migrations, is installed on the system.
+    cmds:
+      - |
+        if ! command -v migrate &> /dev/null; then
+          echo "migrate not found. Attempting to install..."
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate
+        fi
+    silent: true
+    internal: true

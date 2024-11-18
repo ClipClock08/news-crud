@@ -1,0 +1,86 @@
+version: "3"
+
+includes:
+  tools: ./tools
+
+vars:
+  TEST_FLAGS: -v -parallel 4 -shuffle=on -count=1 -race
+  APP_NAME: news-crud
+
+tasks:
+  default:
+    desc: "Shows available tasks."
+    cmds:
+      - task --list-all
+    silent: true
+
+  lint-run-checks:
+    desc: "Runs the linting checks."
+    deps: [ lint-go, lint-sql, lint-graphql ]
+
+  lint-auto-fix-issues:
+    desc: "Attempts to automatically rectify detected linting inconsistencies."
+    deps:
+      - tools:ensure-prettier-installed
+      - tools:install-golangci-lint
+    cmds:
+      - golangci-lint run --fix
+
+  lint-go:
+    desc: "Linting Go code."
+    deps: [ tools:install-golangci-lint ]
+    cmds:
+      - golangci-lint run --enable=gci --fast --fix
+    internal: true
+    silent: true
+
+  generate:
+    desc: "Executes Go Generate to automatically generate code."
+    cmds:
+      - go generate ./...
+
+  test-unit:
+    desc: "Executes unit tests on the Go code."
+    cmds:
+      - go test {{.TEST_FLAGS}} ./...
+    silent: true
+
+  test-integration:
+    deps: [ tools:ensure-docker-running ]
+    desc: "Executes integration tests on the Go code. Requires Docker."
+    cmds:
+      - go test {{.TEST_FLAGS}} -tags=integration ./...
+    silent: true
+
+  test-cover:
+    deps: [ tools:ensure-docker-running ]
+    desc: "Executes unit and integration tests with coverage. Excludes mocks and generated files from the coverage report."
+    cmds:
+      - go test {{.TEST_FLAGS}} -tags=integration -coverpkg=./... -coverprofile=cover.full.out ./...
+      - cat cover.full.out | grep -vE "mocks|queries|gen.go" > cover.out && rm cover.full.out
+
+  new-migration:
+    desc: "Creates a new migration."
+    deps: [ tools:ensure-migrate-installed ]
+    cmds:
+      - |
+        if [ -z "{{.MG}}" ]; then
+          echo "Migration name is not provided!";
+          echo "Please provide it as env variable like this:"
+          echo "task new-migration MG=migration_name"
+          exit 1
+        fi
+      - migrate create -seq -ext sql -dir ./internal/db/postgres/migrations {{.MG}}
+    silent: true
+
+  docker-up:
+    desc: "run docker compose"
+    deps: [ tools:ensure-docker-running ]
+    cmds:
+      - cd infrastructure && docker-compose up -d --remove-orphans
+
+  docker-down:
+    desc: "run docker compose"
+    deps: [ tools:ensure-docker-running ]
+    cmds:
+      - cd infrastructure && docker-compose down
